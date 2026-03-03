@@ -1,0 +1,20 @@
+from flask import Flask
+from .database import db
+from .config import Config
+
+def create_app():
+    app = Flask(__name__)
+    app.config.from_object(Config)
+
+    db.init_app(app)
+
+    # Register blueprints
+    from .routes.health import health_bp
+    from .routes.dashboard import dashboard_bp
+    from .routes.dev_seed import dev_seed_bp
+
+    app.register_blueprint(health_bp)
+    app.register_blueprint(dashboard_bp)
+    app.register_blueprint(dev_seed_bp)
+
+    return app
