@@ -1,6 +1,2 @@
-def estimate_recovery_value(client):
-    if client.visit_count == 0:
-        return 0
-
-    avg_value = client.lifetime_value / client.visit_count
-    return avg_value * 6  # assume 6 future visits recovered
+def generate_winback_message(client):
+    return f"Hey {client.name}, haven’t seen you in a while! Want to book your next cut?"
