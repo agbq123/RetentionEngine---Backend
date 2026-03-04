@@ -12,9 +12,11 @@ def create_app():
     from .routes.health import health_bp
     from .routes.dashboard import dashboard_bp
     from .routes.dev_seed import dev_seed_bp
+    from .routes.root import root_bp
 
     app.register_blueprint(health_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(dev_seed_bp)
+    app.register_blueprint(root_bp)
 
     return app
