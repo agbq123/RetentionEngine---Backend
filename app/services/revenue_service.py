@@ -8,4 +8,4 @@ def estimate_recovery_value(client):
 
     visits_per_year = client.visit_count / (weeks_active / 52)
 
-    return avg_value * visits_per_year
+    return round(avg_value * visits_per_year, 2)
