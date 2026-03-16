@@ -12,7 +12,7 @@ def at_risk_clients():
 
     for client in clients:
         risk = calculate_churn_risk(client)
-        if risk in ["High", "Medium"]:
+        if risk in ["High", "Medium", "Low"]:
             result.append({
                 "name": client.name,
                 "risk": risk,
