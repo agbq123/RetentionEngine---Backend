@@ -16,7 +16,6 @@ def seed_data():
     db.drop_all()
     db.create_all()
 
-    # Create demo barber shop
     user = User(
         business_name="Fade Masters",
         email="owner@test.com",
@@ -30,13 +29,21 @@ def seed_data():
 
     for i in range(50):
 
-        visit_count = random.randint(3, 20)
+        visit_interval = random.randint(2, 6)  # weeks between visits
+        visit_count = random.randint(4, 20)
 
-        first_visit = datetime.utcnow() - timedelta(days=random.randint(200, 700))
-
-        last_visit = datetime.utcnow() - timedelta(days=random.randint(5, 90))
+        first_visit = datetime.utcnow() - timedelta(
+            weeks=visit_interval * visit_count + random.randint(0, 12)
+        )
 
         avg_price = random.randint(30, 60)
+
+        visit_date = first_visit
+
+        for _ in range(visit_count):
+            visit_date += timedelta(weeks=visit_interval)
+
+        last_visit = visit_date
 
         lifetime_value = visit_count * avg_price
 
@@ -50,14 +57,11 @@ def seed_data():
         )
 
         db.session.add(client)
-        clients.append(client)
+        clients.append((client, visit_interval, avg_price))
 
     db.session.commit()
 
-    # Create appointment history
-    for client in clients:
-
-        visit_interval = random.randint(2, 6)
+    for client, interval, price in clients:
 
         visit_date = client.first_visit
 
@@ -66,15 +70,12 @@ def seed_data():
             appointment = Appointment(
                 client_id=client.id,
                 appointment_date=visit_date,
-                service_price=random.randint(30, 60)
+                service_price=price
             )
 
             db.session.add(appointment)
 
-            visit_date += timedelta(weeks=visit_interval)
-
-            if visit_date > client.last_visit:
-                break
+            visit_date += timedelta(weeks=interval)
 
     db.session.commit()
 
