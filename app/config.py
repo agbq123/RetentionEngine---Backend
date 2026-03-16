@@ -1,8 +1,10 @@
 import os
+from dotenv import load_dotenv
 
 class Config:
     SQLALCHEMY_DATABASE_URI = "sqlite:///retention.db"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    TWILIO_ACCOUNT_SID = "your_sid"
-    TWILIO_AUTH_TOKEN = "your_token"
-    TWILIO_PHONE = "+1234567890"
+
+    TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+    TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+    TWILIO_PHONE = os.getenv("TWILIO_PHONE")
