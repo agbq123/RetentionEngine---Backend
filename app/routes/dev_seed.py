@@ -43,7 +43,7 @@ def seed_data():
         for _ in range(visit_count):
             visit_date += timedelta(weeks=visit_interval)
 
-        last_visit = visit_date
+        last_visit = visit_date - timedelta(weeks=random.randint(0, visit_interval * 2))
 
         lifetime_value = visit_count * avg_price
 
