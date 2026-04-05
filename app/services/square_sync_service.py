@@ -4,7 +4,7 @@ from ..models.client import Client
 from ..models.appointment import Appointment
 from ..models.integration_account import IntegrationAccount
 from ..database import db
-from ..integrations.square_adapter import search_customers, list_bookings
+from ..integrations import square_adapter
 
 #CHECK THIS FILE
 def sync_square_data(user):
@@ -16,7 +16,7 @@ def sync_square_data(user):
     if not account:
         raise Exception("Square not connected")
 
-    customers = search_customers(account.access_token)
+    customers = square_adapter.search_customers(account.access_token)
 
     customer_map = {}
 
@@ -43,7 +43,7 @@ def sync_square_data(user):
 
         customer_map[c["id"]] = client
 
-    bookings = list_bookings(account.access_token, account.location_id)
+    bookings = square_adapter.list_bookings(account.access_token, account.location_id)
 
     for b in bookings:
         customer_id = b.get("customer_id")
