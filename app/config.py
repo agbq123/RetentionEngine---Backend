@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 
 class Config:
-    SQLALCHEMY_DATABASE_URI = "sqlite:///retention.db"
+    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///retention.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")

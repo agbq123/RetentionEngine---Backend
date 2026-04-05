@@ -22,5 +22,7 @@ def create_app():
     app.register_blueprint(dev_seed_bp)
     app.register_blueprint(root_bp)
     app.register_blueprint(integrations_bp)
+    with app.app_context():
+        db.create_all()
 
     return app
