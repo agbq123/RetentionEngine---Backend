@@ -1,6 +1,9 @@
 from flask import Flask
 from .database import db
 from .config import Config
+from .routes.integrations import integrations_bp
+
+
 
 def create_app():
     app = Flask(__name__)
@@ -18,5 +21,6 @@ def create_app():
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(dev_seed_bp)
     app.register_blueprint(root_bp)
+    app.register_blueprint(integrations_bp)
 
     return app
