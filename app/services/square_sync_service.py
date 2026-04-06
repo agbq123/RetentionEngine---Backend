@@ -1,37 +1,62 @@
 from datetime import datetime
 
-from ..models.client import Client
-from ..models.appointment import Appointment
-from ..models.integration_account import IntegrationAccount
 from ..database import db
-from ..integrations import square_adapter
+from ..integrations.square_adapter import list_bookings, search_customers
+from ..models.appointment import Appointment
+from ..models.client import Client
+from ..models.integration_account import IntegrationAccount
 
-#CHECK THIS FILE
+
+def _parse_square_datetime(value):
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+
+
 def sync_square_data(user):
     account = IntegrationAccount.query.filter_by(
         user_id=user.id,
-        provider="square"
+        provider="square",
     ).first()
 
     if not account:
         raise Exception("Square not connected")
 
-    customers = square_adapter.search_customers(account.access_token)
+    customers = search_customers(account.access_token)
+    # Uncomment when the Square account is fully set up for Appointments
+    # bookings = list_bookings(account.access_token, account.location_id)
+    bookings = []
 
     customer_map = {}
+    customers_created = 0
+    customers_updated = 0
+    appointments_created = 0
 
-    for c in customers:
-        email = c.get("email_address")
-        phone = c.get("phone_number")
-        name = " ".join(filter(None, [c.get("given_name"), c.get("family_name")])).strip() or "Unknown"
+    for customer in customers:
+        square_customer_id = customer.id
+        email = customer.email_address
+        phone = customer.phone_number
+        name = " ".join(
+            part for part in [customer.given_name, customer.family_name] if part
+        ).strip() or "Unknown"
 
-        client = Client.query.filter_by(user_id=user.id, email=email).first()
+        client = None
+
+        if square_customer_id:
+            client = Client.query.filter_by(square_customer_id=square_customer_id).first()
+
+        if not client and email:
+            client = Client.query.filter_by(user_id=user.id, email=email).first()
+
         if not client and phone:
             client = Client.query.filter_by(user_id=user.id, phone=phone).first()
 
         if not client:
             client = Client(
                 user_id=user.id,
+                square_customer_id=square_customer_id,
                 name=name,
                 email=email,
                 phone=phone,
@@ -40,38 +65,83 @@ def sync_square_data(user):
             )
             db.session.add(client)
             db.session.flush()
+            customers_created += 1
+        else:
+            client.square_customer_id = square_customer_id or client.square_customer_id
+            client.name = name or client.name
+            client.email = email or client.email
+            client.phone = phone or client.phone
+            customers_updated += 1
 
-        customer_map[c["id"]] = client
+        if square_customer_id:
+            customer_map[square_customer_id] = client
 
-    bookings = square_adapter.list_bookings(account.access_token, account.location_id)
+    for booking in bookings:
+        square_booking_id = booking.id
+        square_customer_id = booking.customer_id
+        start_at = _parse_square_datetime(booking.start_at)
+        status = booking.status
+        location_id = booking.location_id
 
-    for b in bookings:
-        customer_id = b.get("customer_id")
-        start_at = b.get("start_at")
-
-        if not customer_id or not start_at or customer_id not in customer_map:
+        if not square_customer_id or square_customer_id not in customer_map or not start_at:
             continue
 
-        client = customer_map[customer_id]
-        dt = datetime.fromisoformat(start_at.replace("Z", "+00:00"))
+        client = customer_map[square_customer_id]
 
-        exists = Appointment.query.filter_by(
-            client_id=client.id,
-            appointment_date=dt
-        ).first()
+        appointment = None
+        if square_booking_id:
+            appointment = Appointment.query.filter_by(square_booking_id=square_booking_id).first()
 
-        if exists:
-            continue
+        end_at = _parse_square_datetime(booking.end_at)
 
-        appt = Appointment(
-            client_id=client.id,
-            appointment_date=dt,
-            service_price=0,
-        )
-        db.session.add(appt)
-
-        client.visit_count = (client.visit_count or 0) + 1
-        client.last_visit = dt if not client.last_visit or dt > client.last_visit else client.last_visit
-        client.first_visit = dt if not client.first_visit or dt < client.first_visit else client.first_visit
+        if not appointment:
+            appointment = Appointment(
+                client_id=client.id,
+                square_booking_id=square_booking_id,
+                appointment_date=start_at,
+                start_at=start_at,
+                end_at=end_at,
+                status=status,
+                location_id=location_id,
+                service_name=None,
+                service_price=0,
+            )
+            db.session.add(appointment)
+            appointments_created += 1
+        else:
+            appointment.client_id = client.id
+            appointment.appointment_date = start_at
+            appointment.start_at = start_at
+            appointment.end_at = end_at
+            appointment.status = status
+            appointment.location_id = location_id
 
     db.session.commit()
+
+    all_clients = Client.query.filter_by(user_id=user.id).all()
+
+    for client in all_clients:
+        appointments = (
+            Appointment.query.filter_by(client_id=client.id)
+            .order_by(Appointment.appointment_date.asc())
+            .all()
+        )
+
+        if appointments:
+            client.first_visit = appointments[0].appointment_date
+            client.last_visit = appointments[-1].appointment_date
+            client.visit_count = len(appointments)
+            client.lifetime_value = sum((appt.service_price or 0) for appt in appointments)
+        else:
+            client.first_visit = None
+            client.last_visit = None
+            client.visit_count = 0
+            client.lifetime_value = 0
+
+    db.session.commit()
+
+    return {
+        "customers_created": customers_created,
+        "customers_updated": customers_updated,
+        "appointments_created": appointments_created,
+    }
