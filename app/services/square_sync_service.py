@@ -26,8 +26,8 @@ def sync_square_data(user):
 
     customers = search_customers(account.access_token)
     # Uncomment when the Square account is fully set up for Appointments
-    # bookings = list_bookings(account.access_token, account.location_id)
-    bookings = []
+    bookings = list_bookings(account.access_token, account.location_id)
+   # bookings = []
 
     customer_map = {}
     customers_created = 0
@@ -46,7 +46,6 @@ def sync_square_data(user):
 
         if square_customer_id:
             client = Client.query.filter_by(square_customer_id=square_customer_id).first()
- 
 
         if not client:
             client = Client(
@@ -87,15 +86,12 @@ def sync_square_data(user):
         if square_booking_id:
             appointment = Appointment.query.filter_by(square_booking_id=square_booking_id).first()
 
-        end_at = _parse_square_datetime(booking.end_at)
-
         if not appointment:
             appointment = Appointment(
                 client_id=client.id,
                 square_booking_id=square_booking_id,
                 appointment_date=start_at,
                 start_at=start_at,
-                end_at=end_at,
                 status=status,
                 location_id=location_id,
                 service_name=None,
@@ -107,7 +103,6 @@ def sync_square_data(user):
             appointment.client_id = client.id
             appointment.appointment_date = start_at
             appointment.start_at = start_at
-            appointment.end_at = end_at
             appointment.status = status
             appointment.location_id = location_id
 

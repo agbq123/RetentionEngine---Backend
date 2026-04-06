@@ -58,13 +58,10 @@ def search_customers(access_token: str) -> list[dict]:
     return result.customers or []
 
 
-def list_bookings(access_token: str, location_id: str) -> list[dict]:
+def list_bookings(access_token: str, location_id: str):
     client = build_square_client(access_token)
-    result = client.bookings.list(
-        location_id=location_id
-    )
-
-    return result.bookings or []
+    pager = client.bookings.list(location_id=location_id)
+    return list(pager)
 
 
 def search_team_members(access_token: str) -> list[dict]:
