@@ -42,19 +42,15 @@ def exchange_code_for_token(code: str) -> dict:
     return response.json()
 
 
-def get_locations(access_token: str) -> list[dict]:
+def get_locations(access_token: str):
     client = build_square_client(access_token)
     result = client.locations.list()
-
     return result.locations or []
 
 
-def search_customers(access_token: str) -> list[dict]:
+def search_customers(access_token: str):
     client = build_square_client(access_token)
-    result = client.customers.search(
-        query={}
-    )
-
+    result = client.customers.search(query={})
     return result.customers or []
 
 
@@ -64,10 +60,13 @@ def list_bookings(access_token: str, location_id: str):
     return list(pager)
 
 
-def search_team_members(access_token: str) -> list[dict]:
+def search_team_members(access_token: str):
     client = build_square_client(access_token)
-    result = client.team_members.search(
-        query={}
-    )
-
+    result = client.team_members.search(query={})
     return result.team_members or []
+
+
+def retrieve_catalog_object(access_token: str, object_id: str):
+    client = build_square_client(access_token)
+    result = client.catalog.object.get(object_id=object_id)
+    return getattr(result, "catalog_object", None)
