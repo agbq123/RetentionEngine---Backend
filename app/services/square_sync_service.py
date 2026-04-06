@@ -46,12 +46,7 @@ def sync_square_data(user):
 
         if square_customer_id:
             client = Client.query.filter_by(square_customer_id=square_customer_id).first()
-
-        if not client and email:
-            client = Client.query.filter_by(user_id=user.id, email=email).first()
-
-        if not client and phone:
-            client = Client.query.filter_by(user_id=user.id, phone=phone).first()
+ 
 
         if not client:
             client = Client(
