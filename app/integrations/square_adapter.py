@@ -54,6 +54,15 @@ def search_customers(access_token: str):
     return result.customers or []
 
 
+def retrieve_customer(access_token: str, customer_id: str):
+    client = build_square_client(access_token)
+    result = client.customers.get(customer_id=customer_id)
+    customer = getattr(result, "customer", None)
+    if customer is None:
+        customer = getattr(result, "customer_profile", None)
+    return customer
+
+
 def list_bookings(access_token: str, location_id: str):
     client = build_square_client(access_token)
     pager = client.bookings.list(location_id=location_id)

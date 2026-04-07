@@ -4,7 +4,7 @@ from ..database import db
 from ..integrations.square_adapter import (
     batch_retrieve_catalog_objects,
     list_bookings,
-    search_customers,
+    retrieve_customer,
 )
 from ..models.appointment import Appointment
 from ..models.client import Client
@@ -93,6 +93,17 @@ def _extract_variation_ids(bookings):
                 variation_ids.add(variation_id)
 
     return sorted(variation_ids)
+
+
+def _extract_customer_ids(bookings):
+    customer_ids = set()
+
+    for booking in bookings:
+        customer_id = _normalize_text(getattr(booking, "customer_id", None))
+        if customer_id:
+            customer_ids.add(customer_id)
+
+    return sorted(customer_ids)
 
 
 def _chunked(items, size):
@@ -228,26 +239,34 @@ def _booking_service_info(booking, location_id, variations_by_id, related_by_id)
     return _normalize_text(first_name), _normalize_price(total_price)
 
 
-def sync_square_data(user):
-    account = IntegrationAccount.query.filter_by(
-        user_id=user.id,
-        provider="square",
-    ).first()
+def _sync_missing_clients_from_bookings(user, access_token, bookings):
+    booking_customer_ids = _extract_customer_ids(bookings)
+    if not booking_customer_ids:
+        return {}, 0, 0
 
-    if not account:
-        raise Exception("Square not connected")
+    existing_clients = Client.query.filter(
+        Client.square_customer_id.in_(booking_customer_ids)
+    ).all()
+    customer_map = {
+        _normalize_text(client.square_customer_id): client
+        for client in existing_clients
+        if _normalize_text(client.square_customer_id)
+    }
 
-    customers = search_customers(account.access_token)
-    bookings = list_bookings(account.access_token, account.location_id)
-    variations_by_id, related_by_id = _prefetch_catalog_map(account.access_token, bookings)
-
-    customer_map = {}
     customers_created = 0
     customers_updated = 0
-    appointments_created = 0
-    appointments_updated = 0
 
-    for customer in customers:
+    missing_customer_ids = [
+        customer_id
+        for customer_id in booking_customer_ids
+        if customer_id not in customer_map
+    ]
+
+    for customer_id in missing_customer_ids:
+        customer = retrieve_customer(access_token, customer_id)
+        if not customer:
+            continue
+
         square_customer_id = _normalize_text(getattr(customer, "id", None))
         email = _normalize_text(getattr(customer, "email_address", None))
         phone = _normalize_text(getattr(customer, "phone_number", None))
@@ -261,47 +280,62 @@ def sync_square_data(user):
             )
         ) or "Unknown"
 
-        client = None
-        if square_customer_id:
-            client = Client.query.filter_by(square_customer_id=square_customer_id).first()
+        client = Client(
+            user_id=user.id,
+            square_customer_id=square_customer_id,
+            name=name,
+            email=email,
+            phone=phone,
+            visit_count=0,
+            lifetime_value=0.0,
+        )
+        db.session.add(client)
+        db.session.flush()
 
-        if not client:
-            client = Client(
-                user_id=user.id,
-                square_customer_id=square_customer_id,
-                name=name,
-                email=email,
-                phone=phone,
-                visit_count=0,
-                lifetime_value=0.0,
-            )
-            db.session.add(client)
-            db.session.flush()
-            customers_created += 1
-        else:
-            changed = False
+        customer_map[square_customer_id] = client
+        customers_created += 1
 
-            if square_customer_id and _values_different(_normalize_text(client.square_customer_id), square_customer_id):
-                client.square_customer_id = square_customer_id
-                changed = True
+    return customer_map, customers_created, customers_updated
 
-            if _values_different(_normalize_text(client.name), name):
-                client.name = name
-                changed = True
 
-            if _values_different(_normalize_text(client.email), email):
-                client.email = email
-                changed = True
+def sync_square_data(user):
+    account = IntegrationAccount.query.filter_by(
+        user_id=user.id,
+        provider="square",
+    ).first()
 
-            if _values_different(_normalize_text(client.phone), phone):
-                client.phone = phone
-                changed = True
+    if not account:
+        raise Exception("Square not connected")
 
-            if changed:
-                customers_updated += 1
+    bookings = list_bookings(account.access_token, account.location_id)
+    variations_by_id, related_by_id = _prefetch_catalog_map(account.access_token, bookings)
 
-        if square_customer_id:
-            customer_map[square_customer_id] = client
+    customer_map, customers_created, customers_updated = _sync_missing_clients_from_bookings(
+        user,
+        account.access_token,
+        bookings,
+    )
+
+    booking_ids = [
+        _normalize_text(getattr(booking, "id", None))
+        for booking in bookings
+        if _normalize_text(getattr(booking, "id", None))
+    ]
+
+    existing_appointments = Appointment.query.filter(
+        Appointment.square_booking_id.in_(booking_ids)
+    ).all() if booking_ids else []
+
+    appointment_map = {
+        _normalize_text(appt.square_booking_id): appt
+        for appt in existing_appointments
+        if _normalize_text(appt.square_booking_id)
+    }
+
+    appointments_created = 0
+    appointments_updated = 0
+
+    touched_client_ids = set()
 
     for booking in bookings:
         square_booking_id = _normalize_text(getattr(booking, "id", None))
@@ -323,10 +357,9 @@ def sync_square_data(user):
             continue
 
         client = customer_map[square_customer_id]
+        touched_client_ids.add(client.id)
 
-        appointment = None
-        if square_booking_id:
-            appointment = Appointment.query.filter_by(square_booking_id=square_booking_id).first()
+        appointment = appointment_map.get(square_booking_id)
 
         if not appointment:
             appointment = Appointment(
@@ -340,6 +373,7 @@ def sync_square_data(user):
                 service_price=service_price,
             )
             db.session.add(appointment)
+            appointment_map[square_booking_id] = appointment
             appointments_created += 1
         else:
             changed = False
@@ -379,11 +413,12 @@ def sync_square_data(user):
             if changed:
                 appointments_updated += 1
 
-    db.session.commit()
+    if touched_client_ids:
+        touched_clients = Client.query.filter(Client.id.in_(touched_client_ids)).all()
+    else:
+        touched_clients = []
 
-    all_clients = Client.query.filter_by(user_id=user.id).all()
-
-    for client in all_clients:
+    for client in touched_clients:
         appointments = (
             Appointment.query.filter_by(client_id=client.id)
             .order_by(Appointment.appointment_date.asc())
@@ -414,4 +449,5 @@ def sync_square_data(user):
         "appointments_created": appointments_created,
         "appointments_updated": appointments_updated,
         "catalog_variations_prefetched": len(variations_by_id),
+        "bookings_seen": len(bookings),
     }
