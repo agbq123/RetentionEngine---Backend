@@ -37,3 +37,12 @@ def _compute_cadence(past):
     gaps.sort()
     mid = len(gaps) // 2
     return gaps[mid] if len(gaps) % 2 == 1 else (gaps[mid-1] + gaps[mid]) / 2
+
+def _compute_lateness(last_visit, cadence_days, now):
+    days_since = (now - last_visit).days
+    expected_next = last_visit + timedelta(days=cadence_days)
+    days_late = max((now - expected_next).days, 0)
+
+    ratio = days_since / max(cadence_days, 1)
+
+    return days_since, expected_next, days_late, ratio
