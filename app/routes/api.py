@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
-from flask import Blueprint, jsonify
+from flask import Blueprint, current_app, jsonify, request
+
+from ..integrations.twilio_adapter import send_sms
 from ..services.churn_service import compute_client_churn
 from ..models.client import Client
 from ..models.user import User
@@ -100,6 +102,7 @@ def _recommendation(risk):
         return "Send a friendly reminder SMS and highlight convenience or availability."
     return "Keep warm with a light-touch check-in or loyalty-style message."
 
+
 def _recommendation_from_churn(churn):
     if churn["hasUpcomingAppointment"]:
         return "Client already has an upcoming booking — no outreach needed."
@@ -112,6 +115,7 @@ def _recommendation_from_churn(churn):
 
     return "Light-touch engagement."
 
+
 def _serialize_client(client):
     churn = compute_client_churn(client)
 
@@ -123,6 +127,31 @@ def _serialize_client(client):
         **churn,
         "recommendation": _recommendation_from_churn(churn),
     }
+
+
+def _default_sms_message(client):
+    churn = compute_client_churn(client)
+    first_name = (client.name or "there").strip().split()[0]
+
+    if churn["hasUpcomingAppointment"]:
+        return f"Hey {first_name}, you're already booked in soon. Looking forward to seeing you."
+
+    if churn["risk"] == "high":
+        return (
+            f"Hey {first_name}, it's been a little while since your last cut. "
+            f"We'd love to get you back in the chair soon—want to book this week?"
+        )
+
+    if churn["risk"] == "medium":
+        return (
+            f"Hey {first_name}, just checking in—if you need your next cut, "
+            f"we've got openings coming up."
+        )
+
+    return (
+        f"Hey {first_name}, hope you're doing well. "
+        f"Whenever you're ready for your next appointment, we'd love to have you back."
+    )
 
 
 @api_bp.route("/api/clients", methods=["GET"])
@@ -183,3 +212,75 @@ def get_dashboard():
             "revenueAtRisk": revenue_at_risk,
         }
     )
+
+
+@api_bp.route("/api/sms/preview/<int:client_id>", methods=["GET"])
+def get_sms_preview(client_id):
+    client = Client.query.get(client_id)
+
+    if not client:
+        return jsonify({"error": "Client not found"}), 404
+
+    return jsonify(
+        {
+            "clientId": client.id,
+            "clientName": client.name,
+            "phone": client.phone,
+            "message": _default_sms_message(client),
+        }
+    )
+
+
+@api_bp.route("/api/sms/send", methods=["POST"])
+def post_sms_send():
+    data = request.get_json() or {}
+
+    client_id = data.get("clientId")
+    body = (data.get("body") or "").strip()
+
+    if not client_id:
+        return jsonify({"error": "clientId is required"}), 400
+
+    if not body:
+        return jsonify({"error": "body is required"}), 400
+
+    client = Client.query.get(client_id)
+    if not client:
+        return jsonify({"error": "Client not found"}), 404
+
+    if not client.phone:
+        return jsonify({"error": "Client has no phone number"}), 400
+
+    try:
+        print("CLIENT PHONE:", client.phone)
+        print("TWILIO PHONE:", current_app.config.get("TWILIO_PHONE"))
+        result = send_sms(client.phone, body)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": f"Unexpected SMS send failure: {str(exc)}"}), 500
+
+    return jsonify(
+        {
+            "status": "sent",
+            "clientId": client.id,
+            "message": result,
+        }
+    )
+
+
+@api_bp.route("/api/twilio/status", methods=["POST"])
+def twilio_status_callback():
+    # Placeholder for later logging / analytics
+    message_sid = request.form.get("MessageSid")
+    message_status = request.form.get("MessageStatus")
+    error_code = request.form.get("ErrorCode")
+
+    return jsonify(
+        {
+            "ok": True,
+            "messageSid": message_sid,
+            "messageStatus": message_status,
+            "errorCode": error_code,
+        }
+    ), 200
