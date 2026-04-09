@@ -83,3 +83,65 @@ def _risk_bucket(score):
 def _compute_recovery_value(avg_ticket, cadence_days):
     visits_per_year = 365 / max(cadence_days, 1)
     return round(avg_ticket * visits_per_year, 2)
+
+def compute_client_churn(client, now=None):
+    now = now or datetime.utcnow()
+
+    appointments = _get_client_appointments(client.id)
+    past, future = _split_past_future(appointments, now)
+
+    has_upcoming = len(future) > 0
+    next_appt = min([a.appointment_date for a in future], default=None)
+
+    if len(past) == 0:
+        return {
+            "risk": "low",
+            "riskScore": 0,
+            "reason": "No past visit history yet",
+            "confidence": "none",
+            "hasUpcomingAppointment": has_upcoming,
+        }
+
+    first = past[0].appointment_date
+    last = past[-1].appointment_date
+    visit_count = len(past)
+
+    lifetime = sum(a.service_price or 0 for a in past)
+    avg_ticket = lifetime / visit_count if visit_count else 0
+
+    cadence = _compute_cadence(past)
+
+    days_since, expected_next, days_late, ratio = _compute_lateness(last, cadence, now)
+
+    score = _compute_risk_score(ratio)
+    score = _apply_adjustments(score, has_upcoming, visit_count, avg_ticket)
+
+    risk = _risk_bucket(score)
+
+    confidence = (
+        "none" if visit_count == 0 else
+        "low" if visit_count == 1 else
+        "medium" if visit_count <= 3 else
+        "high"
+    )
+
+    recovery = _compute_recovery_value(avg_ticket, cadence)
+
+    return {
+        "risk": risk,
+        "riskScore": score,
+        "reason": f"Usually visits every {int(cadence)} days and is {int(days_late)} days late",
+        "confidence": confidence,
+        "lastVisitDaysAgo": days_since,
+        "cadenceDays": cadence,
+        "expectedNextVisit": expected_next.isoformat() if expected_next else None,
+        "daysLate": days_late,
+        "hasUpcomingAppointment": has_upcoming,
+        "upcomingAppointmentDate": next_appt.isoformat() if next_appt else None,
+        "recoveryValue": recovery,
+        "visitCount": visit_count,
+        "lifetimeValue": round(lifetime, 2),
+        "avgTicket": round(avg_ticket, 2),
+        "firstVisit": first.isoformat(),
+        "lastVisit": last.isoformat(),
+    }
