@@ -46,3 +46,17 @@ def _compute_lateness(last_visit, cadence_days, now):
     ratio = days_since / max(cadence_days, 1)
 
     return days_since, expected_next, days_late, ratio
+
+def _compute_risk_score(ratio):
+    if ratio < 0.85:
+        return 10
+    elif ratio < 1.05:
+        return 20
+    elif ratio < 1.25:
+        return 35
+    elif ratio < 1.5:
+        return 50
+    elif ratio < 2.0:
+        return 70
+    else:
+        return 85
