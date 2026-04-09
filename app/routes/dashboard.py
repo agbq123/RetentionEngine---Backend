@@ -1,6 +1,5 @@
 from flask import Blueprint, jsonify
 from ..models.client import Client
-from ..services.churn_service import calculate_churn_risk
 from ..services.revenue_service import estimate_recovery_value
 
 dashboard_bp = Blueprint("dashboard", __name__)

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from ..models.appointment import Appointment
 
 def _get_client_appointments(client_id):
@@ -96,10 +96,22 @@ def compute_client_churn(client, now=None):
     if len(past) == 0:
         return {
             "risk": "low",
-            "riskScore": 0,
-            "reason": "No past visit history yet",
-            "confidence": "none",
-            "hasUpcomingAppointment": has_upcoming,
+        "riskScore": 0,
+        "reason": "No past visit history yet",
+        "confidence": "none",
+        "lastVisitDaysAgo": 0,
+        "cadenceDays": 0,
+        "expectedNextVisit": None,
+        "daysLate": 0,
+        "hasUpcomingAppointment": has_upcoming,
+        "upcomingAppointmentDate": next_appt.isoformat() if next_appt else None,
+        "recoveryValue": 0,  # ✅ FIX
+        "visitCount": 0,
+        "lifetimeValue": 0,
+        "avgTicket": 0,
+        "visitsPerMonth": 0,  # ✅ FIX
+        "firstVisit": None,
+        "lastVisit": None,
         }
 
     first = past[0].appointment_date
@@ -146,14 +158,3 @@ def compute_client_churn(client, now=None):
         "lastVisit": last.isoformat(),
     }
 
-def _recommendation_from_churn(churn):
-    if churn["hasUpcomingAppointment"]:
-        return "Client already has an upcoming booking — no outreach needed."
-
-    if churn["risk"] == "high":
-        return "Send a strong win-back SMS this week."
-
-    if churn["risk"] == "medium":
-        return "Send a reminder highlighting availability."
-
-    return "Light-touch engagement."

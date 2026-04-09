@@ -100,6 +100,17 @@ def _recommendation(risk):
         return "Send a friendly reminder SMS and highlight convenience or availability."
     return "Keep warm with a light-touch check-in or loyalty-style message."
 
+def _recommendation_from_churn(churn):
+    if churn["hasUpcomingAppointment"]:
+        return "Client already has an upcoming booking — no outreach needed."
+
+    if churn["risk"] == "high":
+        return "Send a strong win-back SMS this week."
+
+    if churn["risk"] == "medium":
+        return "Send a reminder highlighting availability."
+
+    return "Light-touch engagement."
 
 def _serialize_client(client):
     churn = compute_client_churn(client)
