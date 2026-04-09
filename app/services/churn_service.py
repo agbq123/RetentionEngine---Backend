@@ -145,3 +145,15 @@ def compute_client_churn(client, now=None):
         "firstVisit": first.isoformat(),
         "lastVisit": last.isoformat(),
     }
+
+def _recommendation_from_churn(churn):
+    if churn["hasUpcomingAppointment"]:
+        return "Client already has an upcoming booking — no outreach needed."
+
+    if churn["risk"] == "high":
+        return "Send a strong win-back SMS this week."
+
+    if churn["risk"] == "medium":
+        return "Send a reminder highlighting availability."
+
+    return "Light-touch engagement."
