@@ -72,3 +72,10 @@ def _apply_adjustments(score, has_upcoming, visit_count, avg_ticket):
         score += 5
 
     return min(score, 100)
+
+def _risk_bucket(score):
+    if score >= 60:
+        return "high"
+    elif score >= 30:
+        return "medium"
+    return "low"
