@@ -60,3 +60,15 @@ def _compute_risk_score(ratio):
         return 70
     else:
         return 85
+    
+def _apply_adjustments(score, has_upcoming, visit_count, avg_ticket):
+    if has_upcoming:
+        return max(score - 25, 0)
+
+    if visit_count >= 5:
+        score += 5
+
+    if avg_ticket > 80:  # tweakable
+        score += 5
+
+    return min(score, 100)
