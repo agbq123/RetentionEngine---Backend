@@ -20,3 +20,20 @@ def _split_past_future(appointments, now):
             future.append(appt)
 
     return past, future
+
+def _compute_cadence(past):
+    if len(past) < 2:
+        return 28  # default
+
+    gaps = []
+    for i in range(1, len(past)):
+        delta = (past[i].appointment_date - past[i-1].appointment_date).days
+        if delta > 0:
+            gaps.append(delta)
+
+    if not gaps:
+        return 28
+
+    gaps.sort()
+    mid = len(gaps) // 2
+    return gaps[mid] if len(gaps) % 2 == 1 else (gaps[mid-1] + gaps[mid]) / 2
