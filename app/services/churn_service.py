@@ -79,3 +79,7 @@ def _risk_bucket(score):
     elif score >= 30:
         return "medium"
     return "low"
+
+def _compute_recovery_value(avg_ticket, cadence_days):
+    visits_per_year = 365 / max(cadence_days, 1)
+    return round(avg_ticket * visits_per_year, 2)
