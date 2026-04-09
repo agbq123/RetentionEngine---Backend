@@ -102,25 +102,15 @@ def _recommendation(risk):
 
 
 def _serialize_client(client):
-    risk = _risk_level(client)
-    last_visit_days_ago = _days_since(client.last_visit)
-    visits_per_month = _visits_per_month(client)
-    recovery_value = _recovery_value(client)
+    churn = compute_client_churn(client)
 
     return {
         "id": client.id,
         "name": client.name,
         "phone": client.phone,
         "email": client.email,
-        "risk": risk,
-        "recommendation": _recommendation(risk),
-        "lastVisitDaysAgo": last_visit_days_ago if last_visit_days_ago is not None else 999,
-        "visitsPerMonth": visits_per_month,
-        "recoveryValue": recovery_value,
-        "visitCount": _safe_int(client.visit_count),
-        "lifetimeValue": _safe_float(client.lifetime_value),
-        "firstVisit": client.first_visit.isoformat() if client.first_visit else None,
-        "lastVisit": client.last_visit.isoformat() if client.last_visit else None,
+        **churn,
+        "recommendation": _recommendation_from_churn(churn),
     }
 
 
