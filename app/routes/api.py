@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from flask import Blueprint, jsonify
-
+from ..services.churn_service import compute_client_churn
 from ..models.client import Client
 from ..models.user import User
 
