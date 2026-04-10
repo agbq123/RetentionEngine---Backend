@@ -6,3 +6,4 @@ twilio
 squareup
 requests
 resend
+flask-cors
