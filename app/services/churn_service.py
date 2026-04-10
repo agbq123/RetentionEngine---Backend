@@ -14,6 +14,9 @@ def _split_past_future(appointments, now):
     future = []
 
     for appt in appointments:
+        status = (appt.status or "").strip().upper()
+        if status in {"CANCELLED_BY_CUSTOMER", "CANCELLED_BY_SELLER","CANCELLED"}:
+            continue
         if appt.appointment_date <= now:
             past.append(appt)
         else:
