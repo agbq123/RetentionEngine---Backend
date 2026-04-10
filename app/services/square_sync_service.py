@@ -418,6 +418,8 @@ def sync_square_data(user):
     else:
         touched_clients = []
 
+    now = datetime.utcnow()
+
     for client in touched_clients:
         appointments = (
             Appointment.query.filter_by(client_id=client.id)
@@ -425,11 +427,18 @@ def sync_square_data(user):
             .all()
         )
 
-        if appointments:
-            first_visit = _normalize_db_datetime(appointments[0].appointment_date)
-            last_visit = _normalize_db_datetime(appointments[-1].appointment_date)
-            visit_count = len(appointments)
-            lifetime_value = _normalize_price(sum((appt.service_price or 0.0) for appt in appointments))
+        past_appointments = [
+            appt for appt in appointments
+            if appt.appointment_date and appt.appointment_date <= now
+        ]
+
+        if past_appointments:
+            first_visit = _normalize_db_datetime(past_appointments[0].appointment_date)
+            last_visit = _normalize_db_datetime(past_appointments[-1].appointment_date)
+            visit_count = len(past_appointments)
+            lifetime_value = _normalize_price(
+                sum((appt.service_price or 0.0) for appt in past_appointments)
+            )
 
             client.first_visit = first_visit
             client.last_visit = last_visit
