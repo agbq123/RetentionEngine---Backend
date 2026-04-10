@@ -38,6 +38,8 @@ def _compute_cadence(past):
     mid = len(gaps) // 2
     return gaps[mid] if len(gaps) % 2 == 1 else (gaps[mid-1] + gaps[mid]) / 2
 
+    
+
 def _compute_lateness(last_visit, cadence_days, now):
     days_since = (now - last_visit).days
     expected_next = last_visit + timedelta(days=cadence_days)
@@ -80,9 +82,33 @@ def _risk_bucket(score):
         return "medium"
     return "low"
 
-def _compute_recovery_value(avg_ticket, cadence_days):
-    visits_per_year = 365 / max(cadence_days, 1)
-    return round(avg_ticket * visits_per_year, 2)
+def _compute_recovery_value(avg_ticket, cadence_days, days_late, visit_count):
+    # limit horizon to next 90 days
+    visits_in_window = 90 / max(cadence_days, 1)
+
+    # decay based on how late they are
+    if days_late <= 0:
+        decay = 1.0
+    elif days_late < 0.5 * cadence_days:
+        decay = 0.9
+    elif days_late < cadence_days:
+        decay = 0.7 
+    elif days_late < 2 * cadence_days:
+        decay = 0.4
+    else:
+        decay = 0.2
+
+    base_value = avg_ticket * visits_in_window * decay
+
+    # NEW: confidence adjustment
+    if visit_count <= 1:
+        confidence_factor = 0.3
+    elif visit_count <= 3:
+        confidence_factor = 0.6
+    else:
+        confidence_factor = 1.0
+
+    return round(base_value * confidence_factor, 2)
 
 def compute_client_churn(client, now=None):
     now = now or datetime.utcnow()
@@ -137,7 +163,10 @@ def compute_client_churn(client, now=None):
         "high"
     )
 
-    recovery = _compute_recovery_value(avg_ticket, cadence)
+    if has_upcoming:
+        recovery = 0
+    else:
+        recovery = _compute_recovery_value(avg_ticket, cadence, days_late, visit_count)
 
     return {
         "risk": risk,
