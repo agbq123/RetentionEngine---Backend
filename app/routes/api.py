@@ -236,7 +236,16 @@ def get_clients():
 
     clients = Client.query.filter_by(user_id=user.id).all()
     serialized = [_serialize_client(client) for client in clients]
-    serialized.sort(key=lambda c: (-c["recoveryValue"], -c["lastVisitDaysAgo"]))
+    def priority_score(c):
+        risk_weight = {
+            "high": 3,
+            "medium": 2,
+            "low": 1
+        }
+
+        return risk_weight[c["risk"]] * c["recoveryValue"]
+
+    serialized.sort(key=priority_score, reverse=True)
 
     return jsonify({"clients": serialized})
 
@@ -249,7 +258,16 @@ def get_top_opportunities():
 
     clients = Client.query.filter_by(user_id=user.id).all()
     serialized = [_serialize_client(client) for client in clients]
-    serialized.sort(key=lambda c: (-c["recoveryValue"], -c["lastVisitDaysAgo"]))
+    def priority_score(c):
+        risk_weight = {
+            "high": 3,
+            "medium": 2,
+            "low": 1
+        }
+
+        return risk_weight[c["risk"]] * c["recoveryValue"]
+
+    serialized.sort(key=priority_score, reverse=True)
 
     return jsonify({"clients": serialized[:5]})
 
