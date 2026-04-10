@@ -13,6 +13,10 @@ class Config:
     TWILIO_PHONE = os.getenv("TWILIO_PHONE")
     TWILIO_STATUS_CALLBACK_URL = os.getenv("TWILIO_STATUS_CALLBACK_URL")
 
+    RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+    RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL")
+    RESEND_REPLY_TO_EMAIL = os.getenv("RESEND_REPLY_TO_EMAIL")
+
     SQUARE_ACCESS_TOKEN = os.getenv("SQUARE_ACCESS_TOKEN")
     SQUARE_ENV = os.getenv("SQUARE_ENV", "sandbox")
     SQUARE_VERSION = os.getenv("SQUARE_VERSION", "2026-01-22")
